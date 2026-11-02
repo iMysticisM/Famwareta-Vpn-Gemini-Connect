@@ -1,0 +1,9 @@
+[
+  {
+    "tag": "famvpn-pool",
+    "type": "socks",
+    "server": "127.0.0.1",
+    "server_port": 10810,
+    "version": "5"
+  }
+]

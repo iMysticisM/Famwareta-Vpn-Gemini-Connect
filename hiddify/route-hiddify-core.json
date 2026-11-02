@@ -1,0 +1,31 @@
+[
+  {
+    "_comment": "روش اول: هدایت تمام ترافیک کاربران دارای تگ outbound=famvpn-pool به استخر FamVpnGemini",
+    "auth_user": [
+      "{% for u in ctx.users if u.extra.outbound == 'famvpn-pool' %}\"{{ u.uuid }}\"{% if not loop.last %},{% endif %}{% endfor %}"
+    ],
+    "outbound": "famvpn-pool"
+  },
+  {
+    "_comment": "روش دوم: هدایت ورودی‌های دارای تگ اختصاصی به استخر FamVpnGemini",
+    "inbound": [
+      "inbound-famvpn"
+    ],
+    "outbound": "famvpn-pool"
+  },
+  {
+    "_comment": "روش سوم (فایروال هوشمند دامنه): هدایت خودکار سایت‌های حساس و هوش مصنوعی به استخر FamVpnGemini",
+    "domain_suffix": [
+      "openai.com",
+      "chatgpt.com",
+      "auth0.openai.com",
+      "claude.ai",
+      "anthropic.com",
+      "paypal.com",
+      "stripe.com",
+      "binance.com",
+      "coinbase.com"
+    ],
+    "outbound": "famvpn-pool"
+  }
+]

@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# FamVpnGemini - Official Command Line Interface (fam-vpn)
+# ==============================================================================
+set -euo pipefail
+
+INSTALL_DIR="/opt/famvpngemini"
+DATA_DIR="$INSTALL_DIR/data"
+CORE_BIN="$INSTALL_DIR/famvpngemini-core"
+CONFIG_FILE="$DATA_DIR/config.json"
+SERVICE_NAME="famvpngemini"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+header() {
+    echo -e "${CYAN}======================================================${NC}"
+    echo -e "${CYAN}             FamVpnGemini Management CLI             ${NC}"
+    echo -e "${CYAN}======================================================${NC}"
+}
+
+need_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}[Error] This command requires root privileges. Please run with sudo.${NC}" >&2
+        exit 1
+    fi
+}
+
+cmd_status() {
+    header
+    echo -e "${BOLD}Service Status:${NC}"
+    systemctl status "$SERVICE_NAME" --no-pager || true
+    echo ""
+    echo -e "${BOLD}SOCKS5 Proxy Port:${NC} 127.0.0.1:10810"
+    echo -e "${BOLD}Local Dashboard Port:${NC} 127.0.0.1:10820"
+}
+
+cmd_panel_info() {
+    header
+    SECRET_FILE="$INSTALL_DIR/.panel_secret"
+    if [ -f "$SECRET_FILE" ]; then
+        source "$SECRET_FILE"
+        echo -e "${BOLD}Dashboard Security Info:${NC}"
+        echo -e "  Secret Path:      ${GREEN}/${PANEL_SECRET_PATH}/${NC}"
+        if [ -n "${PANEL_DOMAIN:-}" ]; then
+            echo -e "  HTTPS URL (CDN):  ${CYAN}https://${PANEL_DOMAIN}/${PANEL_SECRET_PATH}/${NC}"
+        else
+            echo -e "  Local Direct URL: ${CYAN}http://127.0.0.1:10820/app/${NC}"
+        fi
+        echo -e "  Dashboard User:   ${YELLOW}${PANEL_USER:-admin}${NC}"
+        echo ""
+        echo -e "${BOLD}DPI-Safe SSH Tunnel Alternative:${NC}"
+        echo -e "  Run on your local PC: ${CYAN}ssh -L 10820:127.0.0.1:10820 root@YOUR_SERVER_IP${NC}"
+        echo -e "  Then open in browser: ${GREEN}http://127.0.0.1:10820/app/${NC}"
+    else
+        echo -e "${YELLOW}Dashboard secret info not found. Checking core status...${NC}"
+        echo -e "Local URL: http://127.0.0.1:10820/app/"
+    fi
+}
+
+cmd_add_account() {
+    need_root
+    header
+    echo -e "${YELLOW}Starting Egress Account Sign-in Flow...${NC}"
+    echo -e "Follow the on-screen prompts to input your email, password, and verification code."
+    echo ""
+    "$CORE_BIN" -add-account -data-dir "$DATA_DIR"
+    echo ""
+    echo -e "${GREEN}Restarting service to register new account in pool...${NC}"
+    systemctl restart "$SERVICE_NAME"
+    echo -e "${GREEN}✓ Account successfully added and active in pool!${NC}"
+}
+
+cmd_list_accounts() {
+    need_root
+    header
+    echo -e "${BOLD}Egress Account Pool & Quotas:${NC}"
+    "$CORE_BIN" -list-accounts -data-dir "$DATA_DIR"
+}
+
+cmd_test() {
+    header
+    echo -e "${YELLOW}Testing SOCKS5 Egress via Fastly Tunnel (127.0.0.1:10810)...${NC}"
+    TEST_RES=$(curl -s --connect-timeout 8 -x socks5://127.0.0.1:10810 "https://ipinfo.io/json" 2>/dev/null || echo "")
+    if [ -n "$TEST_RES" ]; then
+        echo -e "${GREEN}✓ Connection Successful!${NC}"
+        echo -e "$TEST_RES" | grep -E '"ip"|"city"|"region"|"country"|"org"' || echo "$TEST_RES"
+    else
+        echo -e "${RED}✗ Egress test failed. Ensure famvpngemini service is running and has at least one valid account.${NC}"
+    fi
+}
+
+cmd_update() {
+    need_root
+    header
+    echo -e "${YELLOW}[Update] Checking and updating FamVpnGemini...${NC}"
+    bash "$INSTALL_DIR/update.sh"
+}
+
+case "${1:-}" in
+    add)
+        cmd_add_account
+        ;;
+    list)
+        cmd_list_accounts
+        ;;
+    panel)
+        cmd_panel_info
+        ;;
+    status)
+        cmd_status
+        ;;
+    restart)
+        need_root
+        systemctl restart "$SERVICE_NAME"
+        echo -e "${GREEN}✓ Service $SERVICE_NAME restarted.${NC}"
+        ;;
+    logs)
+        journalctl -u "$SERVICE_NAME" -n 50 -f
+        ;;
+    test)
+        cmd_test
+        ;;
+    update)
+        cmd_update
+        ;;
+    *)
+        header
+        echo -e "Usage: ${BOLD}fam-vpn${NC} [command]"
+        echo ""
+        echo "Commands:"
+        echo "  ${CYAN}add${NC}       - Sign in and add an account to the multi-pool"
+        echo "  ${CYAN}list${NC}      - List accounts in pool, quota used, and active status"
+        echo "  ${CYAN}panel${NC}     - Show secret HTTPS dashboard URL and login info"
+        echo "  ${CYAN}test${NC}      - Verify egress IP and test Fastly tunnel speed"
+        echo "  ${CYAN}update${NC}    - Update FamVpnGemini core, web UI, and configs"
+        echo "  ${CYAN}status${NC}    - Show service status and active ports"
+        echo "  ${CYAN}restart${NC}   - Restart the daemon"
+        echo "  ${CYAN}logs${NC}      - Stream live connection logs"
+        echo ""
+        ;;
+esac

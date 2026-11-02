@@ -1,0 +1,40 @@
+{
+  "_comment": "Fam Gemini VPN - Firefox Core Config with Firewall Presets",
+  "proxy": {
+    "listen": "127.0.0.1:10810",
+    "country": "",
+    "transport": "h2",
+    "upstream_connections": 2,
+    "max_connections": 512,
+    "idle_sleep": "0s"
+  },
+  "accounts": {
+    "switch_threshold_percent": 95,
+    "order": []
+  },
+  "dashboard": {
+    "enabled": true,
+    "listen": "127.0.0.1:10820"
+  },
+  "routing": {
+    "enabled": false,
+    "_note": "Set enabled to true to activate the firewall filters below",
+    "region": "",
+    "direct": [
+      "geosite:youtube",
+      "geosite:instagram",
+      "geosite:netflix",
+      "geosite:tiktok",
+      "domain:googlevideo.com",
+      "domain:cdninstagram.com"
+    ],
+    "block": [
+      "geosite:category-porn",
+      "geosite:torrent",
+      "domain:bittorrent.com"
+    ]
+  },
+  "logging": {
+    "verbose": false
+  }
+}
